@@ -1,0 +1,15 @@
+FROM python:3.8-buster
+
+RUN apt-get update && apt-get install -y build-essential
+
+RUN pip install uwsgi
+
+
+WORKDIR /app
+COPY requirements.txt /app
+RUN pip install -r requirements.txt
+
+COPY . /app
+
+
+CMD ["uwsgi", "--http", "0.0.0.0:8080", "--module", "run:app", "--processes", "4", "--threads", "2"]
