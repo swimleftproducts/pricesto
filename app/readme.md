@@ -2,7 +2,9 @@ This is a flask app that runs as a task in ecs
 
 Running locally:
     export FLASK_APP=run.py
-    set MODE=local
+    export MODE=local
+    export DATABASE_URI= in .env
+    export SECRET= in .env
     
     run with python app.py
 
