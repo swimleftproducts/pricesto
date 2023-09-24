@@ -1,9 +1,12 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="welcome-container">
-    <div class="welcome-box">
-        <h1>Welcome to Staging</h1>
+<div class="welcome-bg">
+    <div id='landing-box' class="centered-box">
+        <h1>PRICESTO</h1>
+        <p>How do you know a craigslist price is fair?</p>
+        <!-- The htmx attribute hx-get can point to the route handling the login functionality -->
+        <button hx-get="/login" hx-target="#landing-box">Login</button>
     </div>
 </div>
 {% endblock %}
