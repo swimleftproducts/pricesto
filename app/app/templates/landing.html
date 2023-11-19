@@ -6,7 +6,10 @@
         <h1>PRICESTO</h1>
         <p>How do you know a craigslist price is fair?</p>
         <!-- The htmx attribute hx-get can point to the route handling the login functionality -->
-        <button hx-get="/login" hx-target="#landing-box">Login</button>
-    </div>
+        <div class="flex-column">
+            <button hx-get="/login" hx-target="#landing-box">Login</button>
+            <button hx-get="/register" hx-target="#landing-box">Register</button>
+        </div>
+        </div>
 </div>
 {% endblock %}

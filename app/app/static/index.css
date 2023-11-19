@@ -59,6 +59,29 @@ body, html {
     margin: 15px 0px;
 }
 
-.centered-box div:last-child {
-    text-align: right;
+
+#flex-column{
+    display: flex;
+    flex-direction: column;
+}
+
+.warning {
+    border: 2px solid red;
+}
+
+.alert-danger {
+    border: 2px solid red;
+    width: 100%;
+    text-align: center;
+    margin: 10px 0px;
+}
+
+#register_alert {
+    font-size: 18px;
+    background-color: rgb(243, 153, 153);
+    border-radius: 5px;
+}
+
+#login_form {
+    width: 200px;
 }

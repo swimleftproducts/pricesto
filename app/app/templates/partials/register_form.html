@@ -1,0 +1,56 @@
+<form id='login_form' action="/register" method="post">
+    <div class="form-group">
+        <div>
+            <label for="email">Email:</label>
+        </div>
+        <div>
+            <input type="email" id="email" name="email" required>   
+        </div>
+    </div>
+    <div class="form-group">
+        <div>
+            <label for="password">Password:</label>
+        </div>
+        <div>
+            <input type="password" id="password" name="password" required>
+        </div>
+    </div>
+    <div class="form-group">
+        <div>
+            <label for="password">Confirm Password:</label>
+        </div>
+        <div>
+            <input type="password" id="password_confirm" name="password_confirm" required>
+        </div>
+    </div>
+    <div>
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          {% for category, message in messages %}
+            <div id="register_alert" class=" alert-{{ category }}">
+                <div>
+                    {{ message }}
+                </div>
+            </div>
+          {% endfor %}
+        {% endif %}
+      {% endwith %}    
+    </div>
+    <div>
+        <button type="submit">Register</button>
+    </div>
+    <script>
+        document.getElementById('login_form').addEventListener('submit', function (event) {
+        var password = document.getElementById('password').value;
+        var confirmPasswordField = document.getElementById('password_confirm');
+        var confirmPassword = confirmPasswordField.value;
+
+        if (password !== confirmPassword) {
+            confirmPasswordField.classList.add('warning'); // add warning class to confirmPassword input
+            event.preventDefault(); // prevent form submission
+        } else {
+            confirmPasswordField.classList.remove('warning'); // remove warning class if passwords match
+        }
+        })
+    </script>
+</form>

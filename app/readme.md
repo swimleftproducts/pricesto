@@ -1,4 +1,4 @@
-This is a flask app that runs as a task in ecs
+This is a flask app that runs on digital ocean
 
 Running locally:
     export FLASK_APP=run.py
