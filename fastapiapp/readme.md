@@ -1,4 +1,4 @@
-# an app for predicting CL prices
+# an app for predicting CL prices, fun!
 
 #run app simple
 uvicorn main:app --reload
