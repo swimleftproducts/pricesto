@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends
 from enum import Enum
 import datetime
 import boto3
@@ -22,13 +22,31 @@ load_environment(mode)
 #get s3 client for global use
 s3 = get_s3_client()
 
+#db set up
+# Dependency
+from . import crud, models, schemas
+from .database import SessionLocal, engine
+from sqlalchemy.orm import Session
+
+models.Base.metadata.create_all(bind=engine)
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
 app = FastAPI()
 
 @app.get("/")
 async def root():
     return {"message": "Hello World"}
 
-@app.get('/sites/{state}}')
+@app.get('/test_db')
+async def test_db(db: Session = Depends(get_db)):
+    return {"message": "Hello World"}
+
+@app.get('/sites/{state}')
 async def get_sites(state: SupportedStates):
     global sites
     sites = return_sites_for_state(state)
