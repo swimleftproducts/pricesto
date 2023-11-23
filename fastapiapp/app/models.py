@@ -16,3 +16,18 @@ class ScrappedListing(Base):
     location = Column(String)
     description = Column(String)
     description_embedding = Column(String)
+
+
+class User(Base):
+    __tablename__ = 'user'
+    
+    id = Column(Integer, primary_key=True, index=True)  
+    email = Column(String, unique=True, index=True)
+    password = Column(String)
+
+    def set_password(self, password):
+        pass
+
+    def check_password(self, password):
+        pass
+

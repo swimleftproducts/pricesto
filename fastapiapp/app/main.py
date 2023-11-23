@@ -28,7 +28,9 @@ from . import crud, models, schemas
 from .database import SessionLocal, engine
 from sqlalchemy.orm import Session
 
+#doubt this should be here
 models.Base.metadata.create_all(bind=engine)
+
 def get_db():
     db = SessionLocal()
     try:
