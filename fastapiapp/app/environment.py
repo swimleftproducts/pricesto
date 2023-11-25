@@ -10,8 +10,7 @@ def load_environment(mode):
     print("LOADING ", mode, " ENV")
  
 
-    # Determine which .env file to load based on MODE
-    
+    # TODO:Determine which .env file to load based on MODE
     env_file = os.path.join(script_dir, 'envs', 'staging.env')
 
 
