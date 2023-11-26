@@ -15,7 +15,6 @@ class ScrappedListingBase(BaseModel):
 
 class ScrappedListingSchema(ScrappedListingBase):
     id: int
-
     class Config:
         orm_mode = True
 

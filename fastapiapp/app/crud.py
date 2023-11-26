@@ -11,3 +11,10 @@ def create_scrapped_listing(db: Session, scrapped_listing: schemas.CreateScrappe
     db.commit()
     db.refresh(db_scrapped_listing)
     return db_scrapped_listing
+
+def create_listing_for_scraping(db: Session, listing_for_scraping):
+    db_listing_for_scraping = models.ListingForScrapping(**listing_for_scraping.dict())
+    db.add(db_listing_for_scraping)
+    db.commit()
+    db.refresh(db_listing_for_scraping)
+    return db_listing_for_scraping

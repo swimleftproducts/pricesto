@@ -1,22 +1,42 @@
-from sqlalchemy import Column, Integer, String
+from sqlalchemy import Column, Integer, String, DateTime
+from datetime import datetime
 from .database import Base
 
 class ScrappedListing(Base):
     __tablename__='scrapped_listing'
     
     id = Column(Integer, primary_key=True, index=True)
-    hash = Column(Integer)
+    hash = Column(String, unique=True)
     title = Column(String)
-    price = Column(Integer)
-    cylinder = Column(Integer)
-    odometer = Column(Integer)
+    listing_description = Column(String)
+    posting_body = Column(String)
+    embedding = Column(String)
+    image_links = Column(String)
+    cylinders = Column(String)
+    drive = Column(String)
+    fuel = Column(String)
+    odometer = Column(String)
     transmission = Column(String)
-    vehicle_type = Column(String)
-    link = Column(String)
-    location = Column(String)
-    description = Column(String)
-    description_embedding = Column(String)
+    url = Column(String)
+    price = Column(String)
 
+class CraigslistSites(Base):
+    __tablename__='craigslist_sites'
+
+    id = Column(Integer, primary_key=True, index=True)
+    state = Column(String, unique=True)
+    # is json list of all sites in that state
+    sites = Column(String)
+
+class ListingsForScrapping(Base):
+    __tablename__='listings_for_scrapping'
+
+    id = Column(Integer, primary_key=True, index=True)
+    link = Column(String, unique=True)
+    title = Column(String)
+    processed = Column(Integer, default=0)
+    #date now
+    date_added = Column(DateTime, default=datetime.utcnow)
 
 class User(Base):
     __tablename__ = 'user'

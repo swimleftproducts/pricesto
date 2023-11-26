@@ -1,11 +1,18 @@
 from fastapi import FastAPI, Depends
+from fastapi.openapi.docs import get_swagger_ui_html
+from fastapi.openapi.utils import get_openapi
+from fastapi.responses import HTMLResponse, JSONResponse
+
+
 from enum import Enum
 import datetime
 import boto3
 import json
 import os
+from sqlalchemy.exc import IntegrityError
 from app.environment import load_environment
 from app.aws.s3 import get_s3_client
+from app.controllers.scrapping import get_listings_and_save_results, scrape_listings_and_save_results
 
 from app.scraping.craigslist import return_sites_for_state, return_results_for
 
@@ -29,7 +36,7 @@ from .database import SessionLocal, engine
 from sqlalchemy.orm import Session
 
 #doubt this should be here
-models.Base.metadata.create_all(bind=engine)
+#models.Base.metadata.create_all(bind=engine)
 
 def get_db():
     db = SessionLocal()
@@ -38,15 +45,17 @@ def get_db():
     finally:
         db.close()
 
-app = FastAPI()
+from app.authentication import authenticate_user
+
+app = FastAPI(docs_url=None, redoc_url=None, openapi_url = None, dependencies=[Depends(authenticate_user)])
 
 @app.get("/")
 async def root():
     return {"message": "Hello World"}
 
-@app.get('/test_db')
-async def test_db(db: Session = Depends(get_db)):
-    return {"message": "Hello World"}
+@app.get('/health_check')
+async def health_check():
+    return {'status': 'ok'}
 
 @app.get('/sites/{state}')
 async def get_sites(state: SupportedStates):
@@ -56,14 +65,16 @@ async def get_sites(state: SupportedStates):
 
 @app.get('/results_cars_and_trucks/')
 async def get_results_for(search_term: str, site:str, limit: int = 10):
-    print(f'Getting results for {search_term} from {site} for cars and trucks')
     results = return_results_for(search_term, site)
     return { 'total': len(results) , 'results': results[:limit]}
 
+@app.get('/save_results/results_cars_and_trucks/')
+async def save_results_for(search_term: str, site:str, db: Session = Depends(get_db)):
+    return get_listings_and_save_results(search_term, site, models, db)
 
-@app.get('/health_check')
-async def health_check():
-    return {'status': 'ok'}
+@app.get('/process_listings')
+async def process_listings(limit: int, db: Session = Depends(get_db)):
+    return scrape_listings_and_save_results(limit, models, db)
 
 @app.post("/create-json-and-upload-to-s3")
 async def create_json_and_upload_to_s3():
@@ -93,3 +104,19 @@ async def create_json_and_upload_to_s3():
     except Exception as e:
         # Handle any errors that may occur during the upload
         return {"error": str(e)}
+    
+@app.get("/docs", include_in_schema=False)
+async def overridden_swagger_ui_html():
+    return get_swagger_ui_html(
+        openapi_url="/openapi.json", title="Customized docs"
+    )
+
+@app.get("/openapi.json", include_in_schema=False)
+async def overridden_openapi():
+    openapi_schema = get_openapi(
+        title="Custom API",
+        version="1.0.0",
+        description="This is a custom OpenAPI schema",
+        routes=app.routes,
+    )
+    return JSONResponse(openapi_schema)
