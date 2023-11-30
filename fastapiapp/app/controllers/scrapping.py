@@ -1,10 +1,11 @@
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy import or_
+from sqlalchemy import or_, func
 import json
 import time
 import concurrent
 from app.scraping.craigslist import return_sites_for_state, return_results_for, scrape_listing_data, download_image_and_save_s3
 from app.database import SessionLocal
+from app.constants import ScrapeStatus
 
 def get_listings_and_save_results(search_term: str, site: str, models, db):
     print(f'Saving results for {search_term} from {site} for cars and trucks')
@@ -270,3 +271,124 @@ def _scrape_and_save_to_db_and_s3(listing_id,models):
     finally:
         db.close()
     return summary
+
+
+def scrape_listings_and_save_results_concurrentV2(batch_size, models, db):
+    start = time.time()
+    # get listings to scrape where processed is not 1
+    listings = db.query(models.ListingsForScrapping).filter(
+        or_(models.ListingsForScrapping.processed.is_(None),models.ListingsForScrapping.processed == 0,)
+    ).order_by(func.random()).limit(batch_size).all()
+    print(f'Found {len(listings)} listings to scrape')
+    #double check listings
+    listings_to_scrape = [listing for listing in listings if not listing.processed]
+    print(f'Removed {len(listings)-len(listings_to_scrape)} listings that were already processed')
+    
+    #summary for reply
+    summary = {
+        "total_processed": 0,
+        "success": 0,
+        "failures": 0,
+        "images_uploaded": 0,
+        "total_images": 0,
+        "db_save_errors": 0,
+        "error_messages": []
+    }
+    
+    summary["total_processed"] = len(listings_to_scrape)
+    #object that will save all scraped data
+    scrapped_data = []
+
+    #listings to set processed = 2 (not found)
+    listings_failed = []
+
+    #scrape all pages concurrently and return the data object for saving
+    futures = []
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        for listing in listings_to_scrape:
+            future = executor.submit(_scrape_data, listing.link, listing.id)
+            futures.append(future)
+
+    for future in concurrent.futures.as_completed(futures):
+        status, result, id = future.result()
+        if status == ScrapeStatus.OK:
+            scrapped_data.append((result, id))
+        else:
+            listings_failed.append((result, id))
+
+    # save each scrapped listing to db
+    BATCH_SIZE = 25
+    batch_count = 0
+    
+    image_upload_tasks = []
+
+    for listing in scrapped_data:
+        try:
+            data, id = listing
+            db_listing = models.ScrappedListing(**data)
+            db.add(db_listing)
+            db.query(models.ListingsForScrapping).filter(models.ListingsForScrapping.id == id).update({"processed": 1})
+
+            image_links = json.loads(data['image_links'])
+            summary['total_images'] += len(image_links)
+
+            # Queue up image upload tasks for this listing
+            for index, image_link in enumerate(image_links):
+                task = (download_image_and_save_s3, image_link, data['hash'], index)
+                image_upload_tasks.append(task)
+
+            summary["success"] += 1    
+
+            batch_count += 1
+            if batch_count >= BATCH_SIZE:
+                # Process image uploads for the batch
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    futures = [executor.submit(*task) for task in image_upload_tasks]
+                    for future in concurrent.futures.as_completed(futures):
+                        summary["images_uploaded"] += future.result()
+
+                # Clear the task list for the next batch
+                image_upload_tasks.clear()
+
+                # Commit DB changes for this batch
+                db.commit()
+                batch_count = 0
+
+        except Exception as e:
+            print('Error during saving:', e)
+            db.rollback()
+            db_save_errors += 1
+            summary["error_messages"].append(f'Listing {id}: General Error - {e}')
+
+    # Handle any remaining tasks and DB commit for the last batch
+    if batch_count > 0 or image_upload_tasks:
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            futures = [executor.submit(*task) for task in image_upload_tasks]
+            for future in concurrent.futures.as_completed(futures):
+                summary["images_uploaded"] += future.result()
+
+        if batch_count > 0:
+            db.commit()
+
+    # figure out which ones to delete from the listings table
+    for listing in listings_failed:
+        result, id = listing
+        print(f'handling failed listing for listing: {id}')
+        db.query(models.ListingsForScrapping).filter(models.ListingsForScrapping.id == id).update({"processed": 2})        
+        summary["failures"] += 1
+    db.commit()
+
+    print(f'listings failed: {len(listings_failed)}')
+    print(f'listings scrapped: {len(scrapped_data)}')
+    total_time = time.time() - start
+    summary["time_taken"] = total_time
+    return summary
+
+def _scrape_data(link, id):
+    scrapped_data = scrape_listing_data(link)
+    status = ScrapeStatus.OK
+    if isinstance(scrapped_data, ScrapeStatus):
+        print(f'failed scraping for: {link}', scrapped_data)
+        status = scrapped_data
+        scrapped_data = link
+    return status, scrapped_data, id

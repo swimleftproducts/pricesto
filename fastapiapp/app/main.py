@@ -16,7 +16,7 @@ import json
 from sqlalchemy.exc import IntegrityError
 
 from app.controllers.scrapping import return_sites_from_db, get_listings_and_save_results, scrape_listings_and_save_results, get_sites_by_state
-from app.controllers.scrapping import scrape_listings_and_save_results_concurrent
+from app.controllers.scrapping import scrape_listings_and_save_results_concurrent, scrape_listings_and_save_results_concurrentV2
 from app.scraping.craigslist import return_sites_for_state, return_results_for
 
 from app.constants import SupportedStates
@@ -102,6 +102,10 @@ async def process_listings(limit: int, db: Session = Depends(get_db)):
 @app.get('/process_listings_concurrent')
 async def process_listings_concurrent(limit: int, db: Session = Depends(get_db)):
     return scrape_listings_and_save_results_concurrent(limit, models, db)
+
+@app.get('/process_listings_concurrentV2')
+async def process_listings_concurrent(limit: int, db: Session = Depends(get_db)):
+    return scrape_listings_and_save_results_concurrentV2(limit, models, db)
     
 @app.get("/docs", include_in_schema=False)
 async def overridden_swagger_ui_html():

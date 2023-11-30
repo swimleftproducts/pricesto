@@ -1,4 +1,11 @@
 from enum import Enum
+
+#used for response from scrapping
+class ScrapeStatus(str, Enum):
+    OK = 'ok'
+    LISTING_EXPIRED = 'listing expired'
+    REQUEST_FAILED = 'request failed'
+
 # all states supported for training a model
 class SupportedStates(str, Enum):
     alabama = 'alabama'

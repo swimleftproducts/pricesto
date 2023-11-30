@@ -64,6 +64,7 @@ def return_results_for(search_term: str, site: str) -> List[dict]:
             results.append(listing)
     return results
 
+from app.constants import ScrapeStatus
 #perform scraping of a specific listing for list of results
 def scrape_listing_data(url):
     """scrapping a listing for the following:
@@ -83,15 +84,24 @@ def scrape_listing_data(url):
         odometer - miles
         transmission - automatic or manual (not sure range of values)
         type - truck or car (not sure range of values)
+    
+    args:
+        url - url of the listing to scrape
+    returns:
+        dict of all data scraped from listing
+
+    exceptions:
+        listing has expired - text on page saying posting has expired
+        request failed - no response from server (a redirect)
 
     """
     try:
         response = make_request(url)
         if response is None:
-            return 'listing has expired'
+            return ScrapeStatus.LISTING_EXPIRED
     except Exception as e:
         print('error in make request', e)
-        return 'request failed'
+        return ScrapeStatus.REQUEST_FAILED
     soup = BeautifulSoup(response.text, 'html.parser')
     print('scraping listing')
     #check if listing has expired. on page there will be text saying This posting has expired
