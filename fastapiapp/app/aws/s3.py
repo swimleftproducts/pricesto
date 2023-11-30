@@ -21,3 +21,5 @@ def get_s3_client():
     print('aquired s3 client', s3_client)
 
     return s3_client
+
+s3 = get_s3_client()
