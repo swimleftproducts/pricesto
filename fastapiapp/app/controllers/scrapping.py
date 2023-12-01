@@ -317,7 +317,7 @@ def scrape_listings_and_save_results_concurrentV2(batch_size, models, db):
             listings_failed.append((result, id))
 
     # save each scrapped listing to db
-    BATCH_SIZE = 25
+    BATCH_SIZE = 50
     batch_count = 0
     
     image_upload_tasks = []
