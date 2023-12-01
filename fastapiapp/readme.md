@@ -1,7 +1,7 @@
 # an app for predicting CL prices, fun!
 
-#run app simple
-uvicorn main:app --reload
+run app simple from /fastapiapp
+uvicorn app.main:app --reload
 
 Running locally in docker:
     docker run --rm -p 8080:8080 -e MODE=staging swimleftproducts2/pricesto 
@@ -15,3 +15,5 @@ Build image
 
 Push image
     docker push swimleftproducts2/pricesto:latest
+
+    

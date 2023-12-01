@@ -1,33 +1,26 @@
+import os
+from app.environment import load_environment
+mode = os.getenv('MODE','staging')
+load_environment(mode)
+
 from fastapi import FastAPI, Depends
 from fastapi.openapi.docs import get_swagger_ui_html
 from fastapi.openapi.utils import get_openapi
 from fastapi.responses import HTMLResponse, JSONResponse
 
-
+from typing import Optional , List
 from enum import Enum
 import datetime
 import boto3
 import json
-import os
 from sqlalchemy.exc import IntegrityError
-from app.environment import load_environment
-from app.aws.s3 import get_s3_client
-from app.controllers.scrapping import get_listings_and_save_results, scrape_listings_and_save_results
 
+from app.controllers.scrapping import return_sites_from_db, get_listings_and_save_results, scrape_listings_and_save_results, get_sites_by_state
+from app.controllers.scrapping import scrape_listings_and_save_results_concurrent, scrape_listings_and_save_results_concurrentV2
 from app.scraping.craigslist import return_sites_for_state, return_results_for
 
-# all states supported for training a model
-class SupportedStates(str, Enum):
-    colorado = 'colorado'
-    utah = 'utah'
+from app.constants import SupportedStates
 
-sites = []
-
-mode = os.getenv('MODE','staging')
-load_environment(mode)
-
-#get s3 client for global use
-s3 = get_s3_client()
 
 #db set up
 # Dependency
@@ -49,6 +42,7 @@ from app.authentication import authenticate_user
 
 app = FastAPI(docs_url=None, redoc_url=None, openapi_url = None, dependencies=[Depends(authenticate_user)])
 
+
 @app.get("/")
 async def root():
     return {"message": "Hello World"}
@@ -58,52 +52,60 @@ async def health_check():
     return {'status': 'ok'}
 
 @app.get('/sites/{state}')
-async def get_sites(state: SupportedStates):
-    global sites
-    sites = return_sites_for_state(state)
+async def return_sites(state: SupportedStates, db: Session = Depends(get_db)):
+    sites = return_sites_from_db(state, models, db)
     return sites
 
+@app.post('/sites/{state}')
+async def get_sites(state: SupportedStates, all_states: bool = False, save: bool = False, db: Session = Depends(get_db)):
+    if all_states:
+        print('getting and saving all states')
+        results = []
+        for state in SupportedStates:
+            result = get_sites_by_state(state, True, models, db)
+            results.append(result)
+        return results
+    results = get_sites_by_state(state, save, models, db)
+    return results
+
 @app.get('/results_cars_and_trucks/')
-async def get_results_for(search_term: str, site:str, limit: int = 10):
+async def get_results_for( site:str,search_term: Optional[str]=None, limit: int = 10):
+    print('in get results for')
     results = return_results_for(search_term, site)
     return { 'total': len(results) , 'results': results[:limit]}
 
-@app.get('/save_results/results_cars_and_trucks/')
-async def save_results_for(search_term: str, site:str, db: Session = Depends(get_db)):
+@app.post('/save_results/results_cars_and_trucks/')
+async def save_results_for(site:str,search_term: Optional[str] = None, 
+                            get_all_states = Optional[bool], states: Optional[str] = None,
+                            db: Session = Depends(get_db)):
+    if get_all_states:
+        results = []
+        if states:
+            states = states.split(',')
+        else:
+            print('getting all states')
+            states = SupportedStates
+        for state in states:
+            print('getting results for state', state)
+            sites = return_sites_from_db(state, models, db)
+            sites = [site[1][8:] if site[1].startswith('https://') else site[1] for site in sites]
+            for site in sites:
+                result = get_listings_and_save_results(search_term, site, models, db)
+                results.append(result)
+        return results
     return get_listings_and_save_results(search_term, site, models, db)
 
 @app.get('/process_listings')
 async def process_listings(limit: int, db: Session = Depends(get_db)):
     return scrape_listings_and_save_results(limit, models, db)
 
-@app.post("/create-json-and-upload-to-s3")
-async def create_json_and_upload_to_s3():
-    bucket = f'pricesto'
-    s3_directory =f'{mode}/test'
-    # Generate a JSON file content (you can replace this with your actual data)
-    json_data = {
-        "timestamp": 'a time',
-        "message": "Hello, AWS S3!",
-    }
-    filename = f"{datetime.datetime.now().isoformat()}.json"
-    key = f"{s3_directory}/{filename}"
-    print("uploading to ", key)
-    # Generate a unique filename using the current date and time
-    try:
-        # Upload the JSON data to S3
-        s3.put_object(
-            Bucket=bucket,
-            Key=f"{s3_directory}/{filename}",
-            Body=json.dumps(json_data),
-            ContentType="application/json"
-        )
+@app.get('/process_listings_concurrent')
+async def process_listings_concurrent(limit: int, db: Session = Depends(get_db)):
+    return scrape_listings_and_save_results_concurrent(limit, models, db)
 
-        # Return a response indicating success
-        return {"message": f"JSON file '{filename}' uploaded to S3 successfully"}
-
-    except Exception as e:
-        # Handle any errors that may occur during the upload
-        return {"error": str(e)}
+@app.get('/process_listings_concurrentV2')
+async def process_listings_concurrent(limit: int, db: Session = Depends(get_db)):
+    return scrape_listings_and_save_results_concurrentV2(limit, models, db)
     
 @app.get("/docs", include_in_schema=False)
 async def overridden_swagger_ui_html():

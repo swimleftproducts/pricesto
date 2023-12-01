@@ -1,8 +1,11 @@
 from bs4 import BeautifulSoup
 import requests
+import json
+import os
 from typing import Tuple, List
 from fastapi import HTTPException
 from app.scraping.helpers import make_request
+from app.aws.s3 import s3
 
 # URL of the site to be scraped
 _CRAIGSLIST_SITES = "https://www.craigslist.org/about/sites"
@@ -30,8 +33,15 @@ def return_sites_for_state(state: str) -> List[Tuple[str, str]]:
 
 # return results for a given search term from a given site
 def return_results_for(search_term: str, site: str) -> List[dict]:
-    full_url = f'https://{site}/search/cta?query={search_term}'
-    print(f'Fetching results from {full_url} for {search_term}')
+    print("in return results for")
+    if search_term:
+        full_url = f'https://{site}/search/cta?query={search_term}'
+        print(f'Fetching results from {full_url} for {search_term}')
+    else:
+        # does a default search for all listings
+        full_url = f'https://{site}/search/cta'
+        print(f'Fetching results from {full_url}')
+    
     response = make_request(full_url)
     # save results to file
     # with open('results.html', 'w') as f:
@@ -54,6 +64,7 @@ def return_results_for(search_term: str, site: str) -> List[dict]:
             results.append(listing)
     return results
 
+from app.constants import ScrapeStatus
 #perform scraping of a specific listing for list of results
 def scrape_listing_data(url):
     """scrapping a listing for the following:
@@ -73,11 +84,33 @@ def scrape_listing_data(url):
         odometer - miles
         transmission - automatic or manual (not sure range of values)
         type - truck or car (not sure range of values)
+    
+    args:
+        url - url of the listing to scrape
+    returns:
+        dict of all data scraped from listing
+
+    exceptions:
+        listing has expired - text on page saying posting has expired
+        request failed - no response from server (a redirect)
 
     """
-    response = make_request(url)
+    try:
+        response = make_request(url)
+        if response is None:
+            return ScrapeStatus.LISTING_EXPIRED
+    except Exception as e:
+        print('error in make request', e)
+        return ScrapeStatus.REQUEST_FAILED
     soup = BeautifulSoup(response.text, 'html.parser')
-
+    print('scraping listing')
+    #check if listing has expired. on page there will be text saying This posting has expired
+    if soup.find('div', class_='removed'):
+        #raise general exception
+        print('listing has expired')
+        raise Exception("Listing has expired")
+   
+    
     # get title span 
     title = soup.find('span', id='titletextonly').text
     # get listing description note, this is luckly the first attrgroup
@@ -127,7 +160,7 @@ def scrape_listing_data(url):
         'listing_description': listing_description,
         'posting_body': posting_body,
         'embedding': None,
-        'image_links': image_links,
+        'image_links': json.dumps(image_links),
         'cylinders': cylinders,
         'drive': drive,
         'fuel': fuel,
@@ -140,7 +173,43 @@ def scrape_listing_data(url):
     data['hash'] = str(hash(str(data)))
 
     return data
+
+def download_image_and_save_s3(url,hash,index):
+    #download image
+    try:
+        image = requests.get(url).content
+    except Exception as e:
+        return 0
+
+    bucket = os.environ.get('S3_BUCKET')
+    mode = os.environ.get('MODE')
+
+    s3_directory =f'{mode}/images/{hash}'
+    # Generate a JSON file content (you can replace this with your actual data)
     
+    filename = f"image_{index}.jpg"
+    key = f"{s3_directory}/{filename}"
+
+    print("uploading to ", key)
+    # Generate a unique filename using the current date and time
+    try:
+        # Upload the JSON data to S3
+        s3.put_object(
+            Bucket=bucket,
+            Key=f"{s3_directory}/{filename}",
+            Body=image,
+            ContentType="application/json"
+        )
+        print(f"image file '{filename}' uploaded to S3 successfully")
+        # Return a response indicating success
+        return 1
+
+    except Exception as e:
+        # Handle any errors that may occur during the upload
+        return 0
+    
+   
+
 
 if __name__ == "__main__":
     
